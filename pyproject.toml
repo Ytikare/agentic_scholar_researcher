@@ -1,0 +1,41 @@
+[project]
+name = "scholar-agent"
+version = "0.1.0"
+description = "Multi-agent research assistant that writes cited literature reviews from arXiv, built with LangGraph"
+readme = "README.md"
+authors = [
+    { name = "Ytikare", email = "ytikare2@tutanota.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "arxiv>=4.0.1",
+    "langchain-anthropic>=1.7.5",
+    "langgraph>=1.2.12",
+    "pydantic-settings>=2.15.0",
+    "python-dotenv>=1.2.4",
+    "rich>=15.0.0",
+]
+
+[project.scripts]
+scholar = "scholar_agent.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12.3,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.10",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["live: hits real APIs (arXiv/Anthropic); run with `pytest -m live`"]
+addopts = "-m 'not live'"
