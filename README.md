@@ -1,7 +1,23 @@
 # ScholarAgent
 
-A LangGraph research assistant that searches arXiv and answers research questions with cited papers.
-Being built toward a multi-agent literature-review system with evals, observability and deployment.
+A multi-agent LangGraph system that turns a research question into a cited literature review
+from arXiv papers, with an automatic fact-checking loop.
+
+## How it works
+
+```
+question ─► planner ──Send×N──► researcher ─┐  (parallel ReAct agents searching arXiv)
+                                researcher ─┼─► writer ─► fact_checker ──ok──► finalize ─► report
+                                researcher ─┘      ▲            │
+                                                   └──issues────┘  (max 3 drafts)
+```
+
+- **Planner** splits the question into 2–4 sub-questions (structured output).
+- **Researchers** run in parallel, each a small tool-using agent that searches arXiv and writes cited notes.
+- **Writer** drafts the review, citing papers inline by arXiv id.
+- **Fact-checker** verifies citations twice: in code (every cited id must be a retrieved paper,
+  so made-up papers can't get through) and with an LLM (does the cited abstract support the claim?).
+- **Finalize** builds the reference list from real arXiv metadata, so references can't be made up.
 
 ## Quickstart
 
@@ -23,7 +39,7 @@ uv run ruff check .       # lint
 
 - [x] Phase 0: project setup (uv, ruff, pytest)
 - [x] Phase 1: single ReAct agent with an arXiv tool
-- [ ] Phase 2: multi-agent graph (planner → parallel researchers → writer → fact-checker)
+- [x] Phase 2: multi-agent graph (planner → parallel researchers → writer → fact-checker)
 - [ ] Phase 3: human-in-the-loop + checkpointing
 - [ ] Phase 4–5: tests + LLM-as-judge evals
 - [ ] Phase 6: tracing & cost tracking

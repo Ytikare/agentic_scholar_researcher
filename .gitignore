@@ -12,6 +12,9 @@ wheels/
 # Secrets
 .env
 
+# Generated reports
+reports/
+
 # Tooling caches
 .pytest_cache/
 .ruff_cache/

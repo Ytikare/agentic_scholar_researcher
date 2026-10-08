@@ -1,43 +1,75 @@
-"""Phase 1: a single research agent that loops between thinking and searching arXiv.
+"""Phase 2: the multi-agent research graph.
 
-START -> agent --(wants a tool?)--> tools -> agent -> ... -> END
+START -> planner --Send x N--> researcher (parallel) -> writer -> fact_checker
+                                                         ^            |
+                                                         +--issues----+  (max N drafts)
+                                                                      |
+                                                              ok -> finalize -> END
 """
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import SystemMessage
-from langgraph.graph import END, START, MessagesState, StateGraph
-from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.graph import END, START, StateGraph
+from langgraph.types import Send
 
-from scholar_agent.tools import TOOLS
-
-SYSTEM_PROMPT = """\
-You are a research assistant that answers questions using academic papers from arXiv.
-
-Search arXiv before answering; run several searches with different keywords if the first
-results don't cover the question well. Base every claim on the papers you found and cite
-them inline by arXiv id, like [2401.01234]. If the papers don't answer something, say so
-rather than filling the gap from memory.
-
-Finish with a short "References" list: arXiv id, title, URL."""
+from scholar_agent.citations import render_references
+from scholar_agent.nodes import make_fact_checker, make_planner, make_researcher, make_writer
+from scholar_agent.state import ResearchState
 
 
-def build_graph(llm: BaseChatModel | None = None):
-    """Build and compile the agent graph. Pass `llm` to inject a fake model in tests."""
-    if llm is None:
+def fan_out(state: ResearchState) -> list[Send]:
+    """One researcher per sub-question. Send() lets each get its own input and run in parallel."""
+    return [Send("researcher", {"sub_question": q}) for q in state["sub_questions"]]
+
+
+def make_route_after_check(max_drafts: int):
+    def route_after_check(state: ResearchState) -> str:
+        if not state["issues"] or state["drafts_written"] >= max_drafts:
+            return "finalize"
+        return "writer"
+
+    return route_after_check
+
+
+def finalize(state: ResearchState) -> dict:
+    """Append a references list built from real arXiv metadata, plus any unresolved issues."""
+    parts = [state["draft"].strip()]
+    if refs := render_references(state["draft"], state["papers"]):
+        parts.append(refs)
+    if state["issues"]:
+        notes = "\n".join(f"- {i}" for i in state["issues"])
+        parts.append(f"## Unresolved fact-check notes\n\n{notes}")
+    return {"report": "\n\n".join(parts)}
+
+
+def build_graph(
+    research_llm: BaseChatModel | None = None,
+    writer_llm: BaseChatModel | None = None,
+    max_drafts: int | None = None,
+):
+    """Build and compile the graph. Pass LLMs to inject fakes in tests."""
+    if research_llm is None or writer_llm is None or max_drafts is None:
+        from scholar_agent.config import get_settings
         from scholar_agent.llm import get_llm
 
-        llm = get_llm()
-    llm_with_tools = llm.bind_tools(TOOLS)
+        s = get_settings()
+        research_llm = research_llm or get_llm(s.llm_model)
+        writer_llm = writer_llm or get_llm(s.writer_model or s.llm_model)
+        max_drafts = max_drafts or s.max_drafts
 
-    def agent(state: MessagesState) -> dict:
-        response = llm_with_tools.invoke([SystemMessage(SYSTEM_PROMPT), *state["messages"]])
-        return {"messages": [response]}
+    builder = StateGraph(ResearchState)
+    builder.add_node("planner", make_planner(research_llm))
+    builder.add_node("researcher", make_researcher(research_llm))
+    builder.add_node("writer", make_writer(writer_llm))
+    builder.add_node("fact_checker", make_fact_checker(writer_llm))
+    builder.add_node("finalize", finalize)
 
-    builder = StateGraph(MessagesState)
-    builder.add_node("agent", agent)
-    builder.add_node("tools", ToolNode(TOOLS))
-    builder.add_edge(START, "agent")
-    # tools_condition routes to "tools" if the last message has tool calls, else END.
-    builder.add_conditional_edges("agent", tools_condition, {"tools": "tools", END: END})
-    builder.add_edge("tools", "agent")
+    builder.add_edge(START, "planner")
+    builder.add_conditional_edges("planner", fan_out, ["researcher"])
+    # The writer waits until *all* parallel researchers have finished.
+    builder.add_edge("researcher", "writer")
+    builder.add_edge("writer", "fact_checker")
+    builder.add_conditional_edges(
+        "fact_checker", make_route_after_check(max_drafts), ["writer", "finalize"]
+    )
+    builder.add_edge("finalize", END)
     return builder.compile()
