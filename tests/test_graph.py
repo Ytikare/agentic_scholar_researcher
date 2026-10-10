@@ -1,58 +1,12 @@
 """End-to-end tests of the multi-agent graph with fake LLMs and a fake arXiv (offline, free)."""
 
-from uuid import uuid4
-
 import pytest
-from langchain_core.messages import AIMessage, ToolMessage
 
 from scholar_agent.graph import build_graph
-from scholar_agent.state import Issue, Plan, Review
-from tests.fakes import FakeLLM
+from scholar_agent.state import Issue, Review
+from tests.fakes import research_llm, writer_llm
 
-PAPER_1 = {
-    "id": "2401.00001",
-    "title": "Paper One",
-    "authors": "A. Author",
-    "published": "2024-01-02",
-    "url": "http://arxiv.org/abs/2401.00001",
-    "abstract": "X works well.",
-}
-PAPER_2 = {**PAPER_1, "id": "2401.00002", "title": "Paper Two"}
-
-
-@pytest.fixture(autouse=True)
-def fake_arxiv(monkeypatch):
-    monkeypatch.setattr(
-        "scholar_agent.tools.arxiv_search.search_papers",
-        lambda query, max_results=5: ("[2401.00001] Paper One ...", [PAPER_1, PAPER_2]),
-    )
-
-
-def research_llm() -> FakeLLM:
-    """Planner returns 2 sub-questions; each researcher searches once, then writes notes."""
-
-    def respond(messages):
-        if any(isinstance(m, ToolMessage) for m in messages):
-            return AIMessage("X works well [2401.00001].")
-        call = {"name": "search_arxiv", "args": {"query": "x"}, "id": f"call_{uuid4().hex}"}
-        return AIMessage("", tool_calls=[call])
-
-    return FakeLLM(
-        respond=respond,
-        structured=lambda schema, msgs: Plan(sub_questions=["Sub A?", "Sub B?"]),
-    )
-
-
-def writer_llm(draft: str, reviews: list[Review], seen_inputs: list[str] | None = None):
-    """Writer always returns `draft`; fact-checker returns `reviews` in order."""
-    reviews_iter = iter(reviews)
-
-    def respond(messages):
-        if seen_inputs is not None:
-            seen_inputs.append(messages[-1].content)
-        return AIMessage(draft)
-
-    return FakeLLM(respond=respond, structured=lambda schema, msgs: next(reviews_iter))
+pytestmark = pytest.mark.usefixtures("fake_arxiv")
 
 
 def test_happy_path_produces_cited_report():

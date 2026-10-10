@@ -12,8 +12,9 @@ wheels/
 # Secrets
 .env
 
-# Generated reports
+# Generated reports and saved run state
 reports/
+.scholar/
 
 # Tooling caches
 .pytest_cache/

@@ -1,24 +1,23 @@
-"""Phase 2: the multi-agent research graph.
+"""The multi-agent research graph.
 
-START -> planner --Send x N--> researcher (parallel) -> writer -> fact_checker
-                                                         ^            |
-                                                         +--issues----+  (max N drafts)
-                                                                      |
-                                                              ok -> finalize -> END
+START -> planner -> review_plan (human approves / edits) --Send x N--> researcher (parallel)
+      -> writer -> fact_checker --issues--> writer   (max N drafts)
+                               --ok------> finalize -> END
 """
 
 from langchain_core.language_models import BaseChatModel
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
-from langgraph.types import Send
 
 from scholar_agent.citations import render_references
-from scholar_agent.nodes import make_fact_checker, make_planner, make_researcher, make_writer
+from scholar_agent.nodes import (
+    make_fact_checker,
+    make_planner,
+    make_researcher,
+    make_review_plan,
+    make_writer,
+)
 from scholar_agent.state import ResearchState
-
-
-def fan_out(state: ResearchState) -> list[Send]:
-    """One researcher per sub-question. Send() lets each get its own input and run in parallel."""
-    return [Send("researcher", {"sub_question": q}) for q in state["sub_questions"]]
 
 
 def make_route_after_check(max_drafts: int):
@@ -45,8 +44,16 @@ def build_graph(
     research_llm: BaseChatModel | None = None,
     writer_llm: BaseChatModel | None = None,
     max_drafts: int | None = None,
+    checkpointer: BaseCheckpointSaver | None = None,
+    require_approval: bool = False,
 ):
-    """Build and compile the graph. Pass LLMs to inject fakes in tests."""
+    """Build and compile the graph.
+
+    Pass LLMs to inject fakes in tests. `require_approval=True` pauses for a human after
+    planning, which needs a `checkpointer` to save the paused state.
+    """
+    if require_approval and checkpointer is None:
+        raise ValueError("require_approval=True needs a checkpointer to save the paused run")
     if research_llm is None or writer_llm is None or max_drafts is None:
         from scholar_agent.config import get_settings
         from scholar_agent.llm import get_llm
@@ -58,13 +65,17 @@ def build_graph(
 
     builder = StateGraph(ResearchState)
     builder.add_node("planner", make_planner(research_llm))
+    # review_plan routes itself with Command(goto=...); `destinations` is only for drawing.
+    builder.add_node(
+        "review_plan", make_review_plan(require_approval), destinations=("researcher", END)
+    )
     builder.add_node("researcher", make_researcher(research_llm))
     builder.add_node("writer", make_writer(writer_llm))
     builder.add_node("fact_checker", make_fact_checker(writer_llm))
     builder.add_node("finalize", finalize)
 
     builder.add_edge(START, "planner")
-    builder.add_conditional_edges("planner", fan_out, ["researcher"])
+    builder.add_edge("planner", "review_plan")
     # The writer waits until *all* parallel researchers have finished.
     builder.add_edge("researcher", "writer")
     builder.add_edge("writer", "fact_checker")
@@ -72,4 +83,4 @@ def build_graph(
         "fact_checker", make_route_after_check(max_drafts), ["writer", "finalize"]
     )
     builder.add_edge("finalize", END)
-    return builder.compile()
+    return builder.compile(checkpointer=checkpointer)

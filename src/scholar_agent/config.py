@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     max_search_results: int = 5
     # Max drafts the writer may produce before the report is finalized anyway.
     max_drafts: int = 3
+    # Where saved run state lives, so paused or crashed runs can be resumed.
+    checkpoint_db: str = ".scholar/checkpoints.sqlite"
 
 
 @lru_cache

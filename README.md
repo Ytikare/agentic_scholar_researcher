@@ -27,6 +27,15 @@ cp .env.example .env      # then put your ANTHROPIC_API_KEY in .env
 uv run scholar "What are current approaches to reducing hallucination in RAG?"
 ```
 
+The run pauses after planning so you can **approve, edit or cancel** the sub-questions before
+any research is done. Every step is saved to a SQLite checkpoint, so a stopped or crashed run
+continues where it left off:
+
+```bash
+uv run scholar -y "question"          # auto-approve the plan
+uv run scholar --resume <run-id>      # continue a paused or crashed run
+```
+
 ## Tests
 
 ```bash
@@ -40,7 +49,7 @@ uv run ruff check .       # lint
 - [x] Phase 0: project setup (uv, ruff, pytest)
 - [x] Phase 1: single ReAct agent with an arXiv tool
 - [x] Phase 2: multi-agent graph (planner → parallel researchers → writer → fact-checker)
-- [ ] Phase 3: human-in-the-loop + checkpointing
+- [x] Phase 3: human-in-the-loop + checkpointing
 - [ ] Phase 4–5: tests + LLM-as-judge evals
 - [ ] Phase 6: tracing & cost tracking
 - [ ] Phase 7–8: FastAPI + Streamlit, Docker, CI, deploy
