@@ -19,8 +19,7 @@ RUN uv sync --locked --no-dev --extra ui
 ENV PATH="/app/.venv/bin:$PATH" \
     HOST=0.0.0.0 \
     PORT=8000 \
-    STREAMLIT_SERVER_ADDRESS=0.0.0.0 \
-    STREAMLIT_SERVER_PORT=8501
+    STREAMLIT_SERVER_ADDRESS=0.0.0.0
 
 RUN useradd --create-home scholar && mkdir -p /app/.scholar && chown scholar /app/.scholar
 USER scholar

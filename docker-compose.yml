@@ -22,6 +22,7 @@ services:
     environment:
       SCHOLAR_API_URL: http://api:8000 # containers reach each other by service name
       SCHOLAR_API_TOKEN: ${API_TOKEN:-}
+      PORT: "8501"
     ports:
       - "8501:8501"
     depends_on:

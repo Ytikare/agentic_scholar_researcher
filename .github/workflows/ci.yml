@@ -43,7 +43,7 @@ jobs:
           exit 1
       - name: Web UI starts
         run: |
-          docker run -d --name ui -p 8501:8501 scholar-agent:ci scholar-ui
+          docker run -d --name ui -p 8501:8501 -e PORT=8501 scholar-agent:ci scholar-ui
           for i in $(seq 1 30); do
             curl -sf localhost:8501/_stcore/health && exit 0
             sleep 1

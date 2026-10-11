@@ -226,7 +226,9 @@ def main() -> None:
     """Entry point for `uv run scholar-ui`: start Streamlit on this file."""
     from streamlit.web import cli as stcli
 
-    sys.argv = ["streamlit", "run", __file__, "--server.headless", "true"]
+    # Hosting platforms say which port to use in $PORT.
+    port = os.environ.get("PORT", "8501")
+    sys.argv = ["streamlit", "run", __file__, "--server.headless", "true", "--server.port", port]
     sys.exit(stcli.main())
 
 
