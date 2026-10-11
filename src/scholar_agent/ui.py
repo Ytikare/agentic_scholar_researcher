@@ -5,17 +5,24 @@ uv run scholar-api     # terminal 1: the API on http://localhost:8000
 uv run scholar-ui      # terminal 2: this page on http://localhost:8501
 
 SCHOLAR_API_URL and SCHOLAR_API_TOKEN point it at another API (e.g. a deployed one).
+Without SCHOLAR_API_TOKEN, and if the API requires a token, visitors are asked for it as an
+access password before they can start a run. The example reports need no API at all.
 """
 
+import json
 import os
 import sys
 import time
+from pathlib import Path
 
 import httpx
 
 API_URL = os.environ.get("SCHOLAR_API_URL", "http://localhost:8000").rstrip("/")
 API_TOKEN = os.environ.get("SCHOLAR_API_TOKEN")
+EXAMPLES_DIR = Path(__file__).parent / "examples"
 POLL_SECONDS = 2
+# A sleeping free-tier server takes about a minute to wake up, so allow for that.
+TIMEOUT_SECONDS = 90
 STATUS_LABELS = {
     "running": "🔄 Running",
     "awaiting_approval": "✋ Waiting for your approval",
@@ -29,17 +36,80 @@ STATUS_LABELS = {
 def api(method: str, path: str, **kwargs) -> dict | None:
     import streamlit as st
 
-    headers = {"Authorization": f"Bearer {API_TOKEN}"} if API_TOKEN else {}
+    token = API_TOKEN or st.session_state.get("password")
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
     try:
-        r = httpx.request(method, API_URL + path, headers=headers, timeout=30, **kwargs)
+        r = httpx.request(
+            method, API_URL + path, headers=headers, timeout=TIMEOUT_SECONDS, **kwargs
+        )
     except httpx.HTTPError as e:
         st.error(f"Can't reach the API at {API_URL} ({e}). Is `uv run scholar-api` running?")
         st.stop()
+    if r.status_code == 401:
+        st.session_state.pop("password", None)
+        st.error("Wrong or missing access password.")
+        return None
     if r.status_code >= 400:
         detail = r.json().get("detail", r.text) if r.content else r.reason_phrase
         st.error(f"API error {r.status_code}: {detail}")
         return None
     return r.json()
+
+
+def auth_required() -> bool:
+    """Ask the API once per session whether starting runs needs a password."""
+    import streamlit as st
+
+    if "auth_required" not in st.session_state:
+        with st.spinner("Connecting to the server (a sleeping server takes ~1 minute to wake)"):
+            health = api("GET", "/health") or {}
+        st.session_state.auth_required = health.get("auth_required", False)
+    return st.session_state.auth_required
+
+
+def password_gate() -> bool:
+    """True once we can call the API; otherwise shows a password box."""
+    import streamlit as st
+
+    if API_TOKEN or st.session_state.get("password") or not auth_required():
+        return True
+    st.info(
+        "Live runs search arXiv and call Claude on the owner's API credits (~$0.20 each), "
+        "so they need an access password. The example reports are free to browse."
+    )
+    with st.form("unlock"):  # not "password": form names are session_state keys too
+        password = st.text_input("Access password", type="password")
+        if st.form_submit_button("Unlock") and password:
+            st.session_state.password = password
+            st.rerun()
+    return False
+
+
+def load_examples() -> list[dict]:
+    return [json.loads(f.read_text(encoding="utf-8")) for f in sorted(EXAMPLES_DIR.glob("*.json"))]
+
+
+def show_examples() -> None:
+    import streamlit as st
+
+    examples = load_examples()
+    st.write(
+        "Reports the agents wrote for the evaluation benchmark, with the scores an independent "
+        "LLM judge (Claude Opus) gave them from 1 to 5."
+    )
+    example = st.selectbox("Research question", examples, format_func=lambda e: e["question"])
+    scores = st.columns(4)
+    for col, (name, score) in zip(scores, example["judge"].items(), strict=True):
+        col.metric(name.capitalize(), f"{score}/5")
+    m = example["metrics"]
+    st.caption(
+        f"{m['papers_retrieved']} papers retrieved, {m['papers_cited']} cited · "
+        f"{m['drafts_written']} draft(s) · {example['seconds']:.0f} s"
+    )
+    with st.expander("Research plan (sub-questions)"):
+        for q in example["sub_questions"]:
+            st.write(f"- {q}")
+    st.markdown(example["report"])
 
 
 def new_run_form() -> None:
@@ -129,12 +199,19 @@ def page() -> None:
     # The run id lives in the URL, so a refresh or a shared link shows the same run.
     run_id = st.query_params.get("run")
     if not run_id:
-        new_run_form()
+        examples, live = st.tabs(["Example reports", "Run your own"])
+        with examples:
+            show_examples()
+        with live:
+            if password_gate():
+                new_run_form()
         return
 
-    if st.button("← New question"):
+    if st.button("← Back"):
         del st.query_params["run"]
         st.rerun()
+    if not password_gate():
+        return
     run = api("GET", f"/runs/{run_id}")
     if run is None:
         return
