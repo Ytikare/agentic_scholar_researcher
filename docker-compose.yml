@@ -1,0 +1,32 @@
+# Run the API and the web UI together:  docker compose up --build
+# Then open http://localhost:8501 (UI) or http://localhost:8000/docs (API).
+services:
+  api:
+    build: .
+    image: scholar-agent:local
+    env_file: .env # ANTHROPIC_API_KEY, optional API_TOKEN, LANGSMITH_*
+    ports:
+      - "8000:8000"
+    volumes:
+      - scholar-data:/app/.scholar # run checkpoints survive container restarts
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ui:
+    build: . # same image as the api (the second build is cached), different command
+    image: scholar-agent:local
+    command: ["scholar-ui"]
+    environment:
+      SCHOLAR_API_URL: http://api:8000 # containers reach each other by service name
+      SCHOLAR_API_TOKEN: ${API_TOKEN:-}
+    ports:
+      - "8501:8501"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  scholar-data:

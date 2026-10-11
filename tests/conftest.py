@@ -7,6 +7,9 @@ from tests.fakes import PAPER_1, PAPER_2
 # Tests must not send traces to LangSmith, even if .env turns tracing on. load_dotenv()
 # never overrides a variable that is already set, so setting it here wins.
 os.environ["LANGSMITH_TRACING"] = "false"
+# Tests use fake LLMs, so they never need a real key; this makes them run anywhere (e.g. CI)
+# and keeps the real key out of them.
+os.environ["ANTHROPIC_API_KEY"] = "test-key-not-used"
 
 
 @pytest.fixture

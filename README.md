@@ -1,5 +1,7 @@
 # ScholarAgent
 
+[![CI](https://github.com/Ytikare/agentic_scholar_researcher/actions/workflows/ci.yml/badge.svg)](https://github.com/Ytikare/agentic_scholar_researcher/actions/workflows/ci.yml)
+
 A multi-agent LangGraph system that turns a research question into a cited literature review
 from arXiv papers, with an automatic fact-checking loop.
 
@@ -61,6 +63,27 @@ browser can be resumed with `uv run scholar --resume <run_id>`.
 Because every run spends money on your API key, the API has three guards: an optional
 bearer token (`API_TOKEN`; the UI sends `SCHOLAR_API_TOKEN`), the per-run cost budget, and
 a cap on simultaneous runs (`MAX_CONCURRENT_RUNS`, default 2).
+
+## Docker
+
+One image runs either service; `docker compose` starts both, with run checkpoints kept in a
+volume:
+
+```bash
+docker compose up --build    # UI on http://localhost:8501, API on http://localhost:8000
+```
+
+The image installs from `uv.lock` (so it gets exactly the tested versions), runs as a non-root
+user, and keeps dependencies in their own layer so code changes rebuild in seconds.
+
+## Continuous integration
+
+Every push and pull request runs `.github/workflows/ci.yml` on GitHub:
+
+1. **Lint and test:** ruff and the full offline test suite (fake LLMs, fake arXiv: no API key,
+   no network, no cost).
+2. **Docker:** builds the image, then starts the API and the UI from it and checks that both
+   answer their health endpoints.
 
 ## Cost and tracing
 
