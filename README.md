@@ -36,6 +36,32 @@ uv run scholar -y "question"          # auto-approve the plan
 uv run scholar --resume <run-id>      # continue a paused or crashed run
 ```
 
+## Web app and API
+
+A FastAPI backend runs the agents; a Streamlit page is a thin client on top of it.
+
+```bash
+uv sync --extra ui
+uv run scholar-api        # API on http://localhost:8000 (interactive docs at /docs)
+uv run scholar-ui         # web page on http://localhost:8501
+```
+
+| Endpoint | What it does |
+|---|---|
+| `POST /runs` | start a run: `{"question": "...", "auto_approve": false}` -> `202` with a `run_id` |
+| `GET /runs/{run_id}` | status (`running`, `awaiting_approval`, `done`, `cancelled`, `failed`, `stopped`), progress events, plan, report, cost |
+| `POST /runs/{run_id}/decision` | answer the plan review: `{"action": "approve" \| "edit" \| "cancel", "sub_questions": [...]}` |
+| `GET /health` | liveness check |
+
+A run takes minutes, so `POST /runs` returns at once and the run continues in a background
+thread; clients poll `GET /runs/{id}`. The plan review is the same LangGraph `interrupt()`
+the CLI uses, and runs live in the same SQLite checkpoint database, so a run started in the
+browser can be resumed with `uv run scholar --resume <run_id>`.
+
+Because every run spends money on your API key, the API has three guards: an optional
+bearer token (`API_TOKEN`; the UI sends `SCHOLAR_API_TOKEN`), the per-run cost budget, and
+a cap on simultaneous runs (`MAX_CONCURRENT_RUNS`, default 2).
+
 ## Cost and tracing
 
 Every run prints what it cost, per node and per model, from the token counts the API
@@ -105,4 +131,5 @@ Results and experiments so far: [evals/experiments.md](evals/experiments.md).
 - [x] Phase 3: human-in-the-loop + checkpointing
 - [x] Phase 4–5: tests + LLM-as-judge evals
 - [x] Phase 6: tracing & cost tracking
-- [ ] Phase 7–8: FastAPI + Streamlit, Docker, CI, deploy
+- [x] Phase 7: FastAPI + Streamlit
+- [ ] Phase 8: Docker, CI, deploy

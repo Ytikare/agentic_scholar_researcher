@@ -9,12 +9,15 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "arxiv>=4.0.1",
+    "fastapi>=0.143.0",
+    "httpx>=0.28.1",
     "langchain-anthropic>=1.7.5",
     "langgraph>=1.2.12",
     "langgraph-checkpoint-sqlite>=3.1.1",
     "pydantic-settings>=2.15.0",
     "python-dotenv>=1.2.4",
     "rich>=15.0.0",
+    "uvicorn[standard]>=0.54.0",
 ]
 
 [project.scripts]
@@ -22,6 +25,13 @@ scholar = "scholar_agent.cli:main"
 scholar-eval = "scholar_agent.evals.run:main"
 scholar-consistency = "scholar_agent.evals.consistency:main"
 scholar-judge-noise = "scholar_agent.evals.judge_noise:main"
+scholar-api = "scholar_agent.api:main"
+scholar-ui = "scholar_agent.ui:main"
+
+[project.optional-dependencies]
+ui = [
+    "streamlit>=1.65.0",
+]
 
 [build-system]
 requires = ["uv_build>=0.12.3,<0.13.0"]

@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     checkpoint_db: str = ".scholar/checkpoints.sqlite"
     # Stop a run once its LLM calls cost more than this (USD). A typical run is ~$0.10-0.20.
     max_cost_usd: float | None = 1.00
+    # API: if set, every request must send "Authorization: Bearer <token>". Set it whenever
+    # the API is reachable by others, since every run spends money on your API key.
+    api_token: SecretStr | None = None
+    # API: how many runs may execute at the same time.
+    max_concurrent_runs: int = 2
 
 
 @lru_cache
