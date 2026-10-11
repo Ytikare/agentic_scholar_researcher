@@ -36,6 +36,33 @@ uv run scholar -y "question"          # auto-approve the plan
 uv run scholar --resume <run-id>      # continue a paused or crashed run
 ```
 
+## Cost and tracing
+
+Every run prints what it cost, per node and per model, from the token counts the API
+reports and Anthropic's per-token prices (`src/scholar_agent/costs.py`):
+
+```
+Cost: $0.219 over 17 LLM calls
+fact_checker  0.0999      claude-haiku-5-5:  68,337 in / 5,941 out = $0.0098
+planner       0.0001      claude-sonnet-5-5: 60,740 in / 8,805 out = $0.2095
+researcher    0.0097
+writer        0.1096
+```
+
+The cheap Haiku researchers do most of the calls but cost ~4%; the Sonnet writer and
+fact-checker cost ~95%, and each extra revision round adds ~$0.07. So the revision loop,
+not the research, is what to optimize.
+
+A **budget** stops a run once it has cost more than `MAX_COST_USD` (default $1, about 5x a
+normal run) or `--max-cost`. Finished steps are checkpointed, so a stopped run can be
+resumed with a higher limit. `scholar-eval` records agent and judge cost separately and
+takes `--max-total` for the whole benchmark.
+
+**Tracing:** set `LANGSMITH_TRACING=true`, `LANGSMITH_API_KEY` and `LANGSMITH_PROJECT` in
+`.env` (see `.env.example`) and every run shows up in LangSmith as a tree of nodes, LLM
+calls and tool calls, with inputs, outputs, tokens and latency. Runs are tagged with
+their run id.
+
 ## Tests
 
 ```bash
@@ -77,5 +104,5 @@ Results and experiments so far: [evals/experiments.md](evals/experiments.md).
 - [x] Phase 2: multi-agent graph (planner → parallel researchers → writer → fact-checker)
 - [x] Phase 3: human-in-the-loop + checkpointing
 - [x] Phase 4–5: tests + LLM-as-judge evals
-- [ ] Phase 6: tracing & cost tracking
+- [x] Phase 6: tracing & cost tracking
 - [ ] Phase 7–8: FastAPI + Streamlit, Docker, CI, deploy

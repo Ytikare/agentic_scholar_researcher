@@ -3,6 +3,7 @@
 uv run scholar "your research question"     # new run, asks you to approve the plan
 uv run scholar -y "your research question"  # new run, auto-approve the plan
 uv run scholar --resume <run-id>            # continue a paused / crashed run
+uv run scholar --max-cost 0.5 "..."         # stop if the run would cost more than $0.50
 """
 
 import argparse
@@ -15,8 +16,10 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.table import Table
 
 from scholar_agent.config import get_settings
+from scholar_agent.costs import BudgetExceededError, CostTracker
 from scholar_agent.graph import build_graph
 
 console = Console()
@@ -82,6 +85,21 @@ def edit_sub_questions(current: list[str]) -> list[str]:
     return edited
 
 
+def show_costs(tracker: CostTracker) -> None:
+    s = tracker.summary()
+    console.print(f"[bold]Cost: ${s['usd']:.3f}[/] over {s['calls']} LLM calls")
+    table = Table()
+    table.add_column("node")
+    table.add_column("USD", justify="right")
+    for node, usd in s["by_node"].items():
+        table.add_row(node, f"{usd:.4f}")
+    console.print(table)
+    for model, m in s["by_model"].items():
+        console.print(f"[dim]{model}: {m['input']:,} in / {m['output']:,} out = ${m['usd']:.4f}[/]")
+    if s["unpriced_models"]:
+        console.print(f"[yellow]No price known for {s['unpriced_models']}; not in the total.[/]")
+
+
 def save_report(question: str, report: str) -> Path:
     slug = re.sub(r"[^a-z0-9]+", "-", question.lower()).strip("-")[:60]
     path = REPORTS_DIR / f"{datetime.now():%Y%m%d-%H%M%S}-{slug}.md"
@@ -95,12 +113,14 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("question", nargs="*", help="research question")
     p.add_argument("-y", "--yes", action="store_true", help="auto-approve the research plan")
     p.add_argument("--resume", metavar="RUN_ID", help="continue a paused or crashed run")
+    p.add_argument("--max-cost", type=float, metavar="USD", help="stop the run above this cost")
     return p.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    db_path = Path(get_settings().checkpoint_db)
+    settings = get_settings()
+    db_path = Path(settings.checkpoint_db)
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     with SqliteSaver.from_conn_string(str(db_path)) as checkpointer:
@@ -108,7 +128,15 @@ def main() -> None:
 
         # A thread_id names one run; every step of it is saved under this id.
         run_id = args.resume or uuid4().hex[:8]
-        config = {"configurable": {"thread_id": run_id}}
+        budget = args.max_cost if args.max_cost is not None else settings.max_cost_usd
+        tracker = CostTracker(budget)  # counts this session only, not earlier ones of a resume
+        config = {
+            "configurable": {"thread_id": run_id},
+            "callbacks": [tracker],
+            # Shown in traces (LangSmith), so a run can be found by its id.
+            "run_name": "scholar",
+            "metadata": {"run_id": run_id},
+        }
 
         if args.resume:
             snapshot = graph.get_state(config)
@@ -140,6 +168,12 @@ def main() -> None:
         except (KeyboardInterrupt, EOFError):
             # Every finished step is already saved, so nothing is lost.
             console.print(f"\n[yellow]Paused.[/] Resume with: uv run scholar --resume {run_id}")
+            show_costs(tracker)
+            return
+        except BudgetExceededError as e:
+            console.print(f"\n[red]Stopped: {e}.[/] Finished steps are saved; to continue:")
+            console.print(f"  uv run scholar --resume {run_id} --max-cost <higher limit>")
+            show_costs(tracker)
             return
 
         snapshot = graph.get_state(config)
@@ -149,6 +183,7 @@ def main() -> None:
         console.rule("Report")
         console.print(Markdown(report))
         console.print(f"\n[dim]Saved to {save_report(question, report)}[/]")
+    show_costs(tracker)
 
 
 if __name__ == "__main__":

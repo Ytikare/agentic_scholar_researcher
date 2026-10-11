@@ -4,6 +4,7 @@ from typing import Literal
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
 from scholar_agent.citations import extract_citations
@@ -40,7 +41,9 @@ class JudgeScore(BaseModel):
 def make_judge(llm: BaseChatModel):
     grader = llm.with_structured_output(JudgeScore, method="json_schema")
 
-    def judge(question: str, draft: str, papers: dict[str, Paper]) -> JudgeScore:
+    def judge(
+        question: str, draft: str, papers: dict[str, Paper], config: RunnableConfig | None = None
+    ) -> JudgeScore:
         sources = "\n\n".join(
             f"[{cid}] {papers[cid]['title']}\nAbstract: {papers[cid]['abstract']}"
             for cid in extract_citations(draft)
@@ -53,7 +56,8 @@ def make_judge(llm: BaseChatModel):
                     f"## Question\n\n{question}\n\n## Review\n\n{draft}\n\n"
                     f"## Cited abstracts\n\n{sources or '(none)'}"
                 ),
-            ]
+            ],
+            config,
         )
 
     return judge

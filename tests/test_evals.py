@@ -66,7 +66,7 @@ def test_evaluate_runs_graph_and_scores_it():
     )
     score = JudgeScore(reasoning="fine", relevance=4, coverage=3, groundedness=5, clarity=4)
 
-    record = evaluate(graph, lambda q, draft, papers: score, "Does X work?")
+    record = evaluate(graph, lambda q, draft, papers, config=None: score, "Does X work?")
 
     assert record["metrics"]["citation_precision"] == 1.0
     assert record["judge"]["groundedness"] == 5

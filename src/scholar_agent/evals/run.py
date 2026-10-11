@@ -3,6 +3,7 @@
 uv run scholar-eval                    # all questions, with the LLM judge
 uv run scholar-eval --limit 2          # first 2 questions only (cheap smoke run)
 uv run scholar-eval --only moe-efficiency --no-judge
+uv run scholar-eval --max-total 2.0     # stop starting questions once $2 is spent
 """
 
 import argparse
@@ -12,10 +13,10 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from langchain_core.callbacks import UsageMetadataCallbackHandler
 from rich.console import Console
 from rich.table import Table
 
+from scholar_agent.costs import CostTracker
 from scholar_agent.evals.metrics import report_metrics
 
 console = Console()
@@ -24,24 +25,28 @@ METRICS = ("citation_coverage", "citation_precision", "unknown_citations", "draf
            "unresolved_issues")  # fmt: skip
 
 
-def evaluate(graph, judge, question: str) -> dict:
+def evaluate(graph, judge, question: str, budget_usd: float | None = None) -> dict:
     """Run one question through the graph and score the result."""
-    usage = UsageMetadataCallbackHandler()  # adds up tokens from every LLM call in the run
+    agent_cost = CostTracker(budget_usd)  # adds up every LLM call the agent makes
     start = time.perf_counter()
-    state = graph.invoke({"question": question}, {"callbacks": [usage]})
+    state = graph.invoke({"question": question}, {"callbacks": [agent_cost], "run_name": "eval"})
+    cost = agent_cost.summary()
     record = {
         "question": question,
         "seconds": round(time.perf_counter() - start, 1),
+        "usd": cost["usd"],
+        "cost_by_node": cost["by_node"],
         "tokens": {
-            model: {"input": u["input_tokens"], "output": u["output_tokens"]}
-            for model, u in usage.usage_metadata.items()
+            m: {"input": c["input"], "output": c["output"]} for m, c in cost["by_model"].items()
         },
         "metrics": report_metrics(state),
     }
     if judge:
-        score = judge(question, state["draft"], state["papers"])
+        judge_cost = CostTracker()  # kept apart: grading is the eval's cost, not the agent's
+        score = judge(question, state["draft"], state["papers"], {"callbacks": [judge_cost]})
         record["judge"] = score.scores()
         record["judge_reasoning"] = score.reasoning
+        record["judge_usd"] = judge_cost.summary()["usd"]
     # Keep the outputs so a run can be inspected, or re-checked later without re-running it.
     record["state"] = {
         k: state.get(k) for k in ("sub_questions", "draft", "papers", "issues", "report")
@@ -58,6 +63,10 @@ def summarize(records: list[dict]) -> dict:
     for key in SCORES:
         summary[key] = _mean([r["judge"][key] for r in ok if "judge" in r])
     summary["seconds"] = _mean([r["seconds"] for r in ok])
+    # Older records have no cost fields, so only average the ones that do.
+    summary["usd"] = _mean([r["usd"] for r in ok if "usd" in r])
+    summary["total_usd"] = round(sum(r.get("usd", 0) for r in ok), 4)
+    summary["judge_usd"] = round(sum(r.get("judge_usd", 0) for r in ok), 4)
     tokens: dict[str, dict[str, int]] = {}
     for r in ok:
         for model, t in r["tokens"].items():
@@ -73,7 +82,7 @@ def _mean(values: list) -> float | None:
 
 
 HEADERS = ("question", "cite cov", "precision", "unknown", "drafts", "unresolved",
-           "rel", "cov", "grd", "clr", "sec")  # fmt: skip
+           "rel", "cov", "grd", "clr", "sec", "usd")  # fmt: skip
 
 
 def table_rows(records: list[dict], summary: dict) -> list[list[str]]:
@@ -94,17 +103,21 @@ def table_rows(records: list[dict], summary: dict) -> list[list[str]]:
                 *(fmt(r["metrics"][k]) for k in METRICS),
                 *(fmt(judge.get(k)) for k in SCORES),
                 fmt(r["seconds"]),
+                fmt(r.get("usd")),
             ]  # fmt: skip
         )
-    rows.append(["mean", *(fmt(summary[k]) for k in (*METRICS, *SCORES, "seconds"))])
+    rows.append(["mean", *(fmt(summary[k]) for k in (*METRICS, *SCORES, "seconds", "usd"))])
     return rows
 
 
 def token_lines(summary: dict) -> list[str]:
-    return [
+    lines = [
         f"{model}: {t['input']:,} input / {t['output']:,} output tokens"
         for model, t in summary["tokens"].items()
     ]
+    if summary.get("total_usd"):
+        lines.append(f"cost: ${summary['total_usd']:.3f} agent + ${summary['judge_usd']:.3f} judge")
+    return lines
 
 
 def print_table(records: list[dict], summary: dict) -> None:
@@ -137,6 +150,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--only", nargs="+", metavar="ID", help="only run these question ids")
     p.add_argument("--no-judge", action="store_true", help="skip the LLM judge")
     p.add_argument("--out", default="evals/results")
+    p.add_argument("--max-total", type=float, metavar="USD", help="stop once this much is spent")
     return p.parse_args()
 
 
@@ -152,16 +166,22 @@ def main() -> None:
         items = [i for i in items if i["id"] in args.only]
     items = items[: args.limit]
 
+    settings = get_settings()
     graph = build_graph()
-    judge = None if args.no_judge else make_judge(get_llm(get_settings().judge_model))
+    judge = None if args.no_judge else make_judge(get_llm(settings.judge_model))
     out_dir = Path(args.out) / f"{datetime.now():%Y%m%d-%H%M%S}"
     out_dir.mkdir(parents=True)
 
     records = []
+    spent = 0.0
     for n, item in enumerate(items, 1):
+        if args.max_total is not None and spent >= args.max_total:
+            console.print(f"[yellow]Spent ${spent:.2f}, over --max-total; skipping the rest.[/]")
+            break
         console.print(f"[bold cyan]({n}/{len(items)})[/] {item['question']}")
         try:
-            record = evaluate(graph, judge, item["question"])
+            record = evaluate(graph, judge, item["question"], settings.max_cost_usd)
+            spent += record["usd"] + record.get("judge_usd", 0)
         except Exception as e:  # one failed question shouldn't stop the benchmark
             console.print(f"[red]  failed: {e!r}[/]")
             record = {"question": item["question"], "error": repr(e)}

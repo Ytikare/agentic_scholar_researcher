@@ -1,6 +1,12 @@
+import os
+
 import pytest
 
 from tests.fakes import PAPER_1, PAPER_2
+
+# Tests must not send traces to LangSmith, even if .env turns tracing on. load_dotenv()
+# never overrides a variable that is already set, so setting it here wins.
+os.environ["LANGSMITH_TRACING"] = "false"
 
 
 @pytest.fixture

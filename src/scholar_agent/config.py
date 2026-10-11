@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 
+from dotenv import load_dotenv
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -25,8 +26,12 @@ class Settings(BaseSettings):
     max_drafts: int = 3
     # Where saved run state lives, so paused or crashed runs can be resumed.
     checkpoint_db: str = ".scholar/checkpoints.sqlite"
+    # Stop a run once its LLM calls cost more than this (USD). A typical run is ~$0.10-0.20.
+    max_cost_usd: float | None = 1.00
 
 
 @lru_cache
 def get_settings() -> Settings:
+    # Also put .env into os.environ, for libraries that read it directly (e.g. LangSmith).
+    load_dotenv()
     return Settings()
