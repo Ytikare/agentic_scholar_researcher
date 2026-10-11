@@ -40,7 +40,7 @@ def client(token=None, max_active=2, fail_once_on=None) -> TestClient:
 
 def test_health():
     with client() as c:
-        assert c.get("/health").json() == {"status": "ok"}
+        assert c.get("/health").json() == {"status": "ok", "auth_required": False}
 
 
 def test_run_pauses_for_approval_then_finishes():
@@ -117,7 +117,7 @@ def test_token_is_required_when_configured():
         assert c.post("/runs", json=QUESTION, headers=wrong).status_code == 401
         right = {"Authorization": "Bearer s3cret"}
         assert c.post("/runs", json=QUESTION, headers=right).status_code == 202
-        assert c.get("/health").status_code == 200  # health checks stay open
+        assert c.get("/health").json()["auth_required"]  # health checks stay open
 
 
 def test_question_is_known_before_the_first_checkpoint():

@@ -96,8 +96,9 @@ def create_app(manager: RunManager | None = None, api_token: str | None = None) 
         return run
 
     @app.get("/health")
-    def health() -> dict:
-        return {"status": "ok"}
+    def health(request: Request) -> dict:
+        # Tells clients (the UI) whether to ask the user for a password.
+        return {"status": "ok", "auth_required": bool(request.app.state.token)}
 
     @app.post("/runs", status_code=202, dependencies=[Depends(check_token)])
     def start_run(body: StartRun, manager: Manager) -> RunStatus:
