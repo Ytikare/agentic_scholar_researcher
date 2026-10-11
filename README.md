@@ -64,11 +64,11 @@ Each report is scored two ways:
 | Code | `drafts_written`, `unresolved_issues` | how much revising the fact-checker forced |
 | LLM judge | relevance, coverage, groundedness, clarity (1–5) | quality a researcher would care about; graded by a different, stronger model (`JUDGE_MODEL`) with written reasoning |
 
-Results so far: [evals/baseline.md](evals/baseline.md).
-
 Plus latency and tokens per model for every run. `scholar-consistency` re-runs the
 fact-checker on one saved draft and reports how often its verdicts agree, because a
 checker that flags different things on each run can't be trusted to drive revisions.
+
+Results and experiments so far: [evals/experiments.md](evals/experiments.md).
 
 ## Roadmap
 

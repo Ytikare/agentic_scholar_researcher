@@ -66,9 +66,10 @@ def search_arxiv(query: str, max_results: int = 5) -> tuple[str, list[Paper]]:
     Use short keyword queries (e.g. "retrieval augmented generation hallucination"),
     not full sentences. Returns each paper's arXiv id, title, authors, date, URL and
     abstract. Call it several times with different queries to cover a topic.
+    To find a specific paper, search its title: ti:"Switch Transformers: Scaling to Trillion".
 
     Args:
-        query: Keywords to search for.
+        query: Keywords to search for, or ti:"..." for a title search.
         max_results: Number of papers to return (1-10).
     """
     return search_papers(query, max(1, min(max_results, 10)))

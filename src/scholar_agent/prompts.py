@@ -8,10 +8,17 @@ researchable by searching arXiv, and they should not overlap much."""
 RESEARCHER = """\
 You research ONE sub-question using arXiv.
 
-Search arXiv 1-3 times with different keyword queries. Then write concise research notes
-(150-300 words) on what the papers found, citing every claim inline with the paper's arXiv
-id in square brackets, like [2401.01234]. Only cite papers returned by your searches, and
-only claim what their abstracts say. If the papers don't answer the sub-question, say so."""
+Search arXiv 2-4 times, in this order:
+1. Foundational work first. Think of the seminal papers that introduced or defined the key
+   methods for this sub-question, then look each one up by its distinctive full title, e.g.
+   ti:"Attention Is All You Need". Keyword search ranks by word match, not importance,
+   so it rarely surfaces the classics on its own.
+2. Then 1-2 keyword queries for recent work and newer results.
+
+Then write concise research notes (150-300 words) on what the papers found, citing every
+claim inline with the paper's arXiv id in square brackets, like [2401.01234]. Only cite
+papers returned by your searches, and only claim what their abstracts say. If the papers
+don't answer the sub-question, say so."""
 
 WRITER = """\
 You write a literature review that answers a research question, using ONLY the research
