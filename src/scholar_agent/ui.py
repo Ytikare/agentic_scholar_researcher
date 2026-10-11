@@ -23,6 +23,7 @@ EXAMPLES_DIR = Path(__file__).parent / "examples"
 POLL_SECONDS = 2
 # A sleeping free-tier server takes about a minute to wake up, so allow for that.
 TIMEOUT_SECONDS = 90
+WAKE_UP_SECONDS = 120
 STATUS_LABELS = {
     "running": "🔄 Running",
     "awaiting_approval": "✋ Waiting for your approval",
@@ -45,15 +46,41 @@ def api(method: str, path: str, **kwargs) -> dict | None:
     except httpx.HTTPError as e:
         st.error(f"Can't reach the API at {API_URL} ({e}). Is `uv run scholar-api` running?")
         st.stop()
+    data = json_or_none(r)
     if r.status_code == 401:
         st.session_state.pop("password", None)
         st.error("Wrong or missing access password.")
         return None
-    if r.status_code >= 400:
-        detail = r.json().get("detail", r.text) if r.content else r.reason_phrase
-        st.error(f"API error {r.status_code}: {detail}")
+    if r.status_code >= 400 or data is None:
+        # Errors from our API are JSON; anything else (an HTML page) came from somewhere else.
+        detail = data.get("detail") if isinstance(data, dict) else "the response wasn't JSON"
+        st.error(f"API error {r.status_code} on {path}: {detail}")
         return None
-    return r.json()
+    return data
+
+
+def json_or_none(r: httpx.Response):
+    try:
+        return r.json()
+    except ValueError:
+        return None
+
+
+def wait_for_api() -> dict | None:
+    """GET /health, retrying while a sleeping server wakes up. None if it never answers."""
+    deadline = time.monotonic() + WAKE_UP_SECONDS
+    while True:
+        try:
+            r = httpx.get(API_URL + "/health", timeout=30)
+            if r.status_code == 200:
+                return json_or_none(r)
+            # While a free-tier service spins up, the platform answers 502/503/504 itself.
+            retry = r.status_code in (502, 503, 504)
+        except httpx.HTTPError:
+            retry = True
+        if not retry or time.monotonic() > deadline:
+            return None
+        time.sleep(5)
 
 
 def auth_required() -> bool:
@@ -62,7 +89,13 @@ def auth_required() -> bool:
 
     if "auth_required" not in st.session_state:
         with st.spinner("Connecting to the server (a sleeping server takes ~1 minute to wake)"):
-            health = api("GET", "/health") or {}
+            health = wait_for_api()
+        if not isinstance(health, dict) or health.get("status") != "ok":
+            st.error(
+                f"No API answering at {API_URL}/health. Check that SCHOLAR_API_URL is the "
+                "scholar-api service's address (https://...onrender.com, without a path)."
+            )
+            st.stop()
         st.session_state.auth_required = health.get("auth_required", False)
     return st.session_state.auth_required
 
