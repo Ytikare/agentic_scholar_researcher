@@ -5,6 +5,7 @@ from langchain_core.messages import HumanMessage
 
 from scholar_agent.evals.consistency import consistency_stats, jaccard
 from scholar_agent.evals.judge import JudgeScore, make_judge
+from scholar_agent.evals.judge_noise import noise_stats
 from scholar_agent.evals.metrics import report_metrics, sentences
 from scholar_agent.evals.run import METRICS, evaluate, markdown_table, summarize
 from scholar_agent.graph import build_graph
@@ -100,3 +101,20 @@ def test_markdown_table_has_a_row_per_question_and_a_mean():
 
     assert md.count("\n| ") == 3  # q1, q2 (error) and mean rows under the header
     assert "error: boom" in md and "| **mean** |" in md
+
+
+def test_noise_stats():
+    def s(cov, grd):
+        return {"relevance": 5, "coverage": cov, "groundedness": grd, "clarity": 4}
+
+    stats = noise_stats({"q1": [s(4, 5), s(4, 4)], "q2": [s(3, 5), s(3, 3)]})
+
+    assert stats["coverage"] == {
+        "unanimous": 1.0,
+        "avg_question_stdev": 0.0,
+        "benchmark_means": [3.5, 3.5],
+        "benchmark_mean_range": 0.0,
+    }
+    assert stats["groundedness"]["unanimous"] == 0.0
+    assert stats["groundedness"]["benchmark_means"] == [5, 3.5]
+    assert stats["groundedness"]["benchmark_mean_range"] == 1.5

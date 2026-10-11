@@ -96,3 +96,36 @@ work, so total token use stays about the same.
   the consistent per-question direction on coverage is treated as a real effect.
 
 **Decision:** keep the change.
+
+## Judge noise check
+
+`scholar-judge-noise` re-graded the saved reports without changing them: the baseline 3
+more times, Experiment 1 2 more times. Together with the original grades that gives 4
+grades per baseline report and 3 per Experiment 1 report. Any movement is judge noise.
+
+Benchmark mean of each score, one value per grading pass:
+
+| score | baseline (4 passes) | experiment 1 (3 passes) | change in average | verdict |
+|---|---|---|---|---|
+| coverage | 3.25, 3.25, 3.125, 3.25 | 4.0, 4.0, 4.0 | **+0.78** | real: 6x larger than the noise range |
+| relevance | 4.5, 4.375, 4.5, 4.625 | 5.0, 5.0, 5.0 | **+0.5** | real: ranges don't overlap |
+| clarity | 4.5, 4.375, 4.375, 4.125 | 4.375, 4.625, 4.5 | +0.16 | noise: ranges overlap |
+| groundedness | 4.5, 4.0, 4.375, 4.125 | 4.125, 4.0, 3.875 | **−0.25** | small, likely real |
+
+Groundedness, per question (average over all passes): 5 questions down, 2 unchanged,
+1 up. The clearest case is `rag-hallucination`, scored 5 in all 4 baseline passes and 4 in
+all 3 Experiment 1 passes.
+
+### Takeaways
+
+- **The coverage and relevance gains are solid.** They are far larger than anything the
+  judge does on its own.
+- **The groundedness drop is real but smaller than it first looked:** −0.25, not −0.37.
+  The single-pass comparison overstated it, because the baseline's first pass (4.5) was
+  its highest of four.
+- **A single judge pass can move a benchmark mean by up to 0.5.** One pass is fine to
+  spot large effects but not small ones. Averaging 2-3 passes per report is the cheap fix.
+- **Next:** the groundedness slip comes from denser reviews stretching abstracts a little
+  (dropped qualifiers, stronger wording). A writer or fact-checker tweak aimed at that,
+  e.g. telling the fact-checker to flag claims that drop a qualifier, is the obvious next
+  experiment.
