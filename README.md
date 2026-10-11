@@ -76,6 +76,22 @@ docker compose up --build    # UI on http://localhost:8501, API on http://localh
 The image installs from `uv.lock` (so it gets exactly the tested versions), runs as a non-root
 user, and keeps dependencies in their own layer so code changes rebuild in seconds.
 
+## Deployment (Render)
+
+`render.yaml` deploys the API and the UI as two free Render web services built from the
+same Dockerfile. The public page shows **example reports** (bundled, free, always available);
+**live runs need an access password**, because each one spends real API credits.
+
+1. Render dashboard -> **New -> Blueprint** -> select this repo.
+2. Fill in the secrets it asks for: `ANTHROPIC_API_KEY`, and `API_TOKEN` (the access
+   password you give out). Leave `SCHOLAR_API_URL` for now if you don't know it yet.
+3. Once `scholar-api` is live, copy its URL (`https://scholar-api-xxxx.onrender.com`) into
+   `SCHOLAR_API_URL` on `scholar-ui` and redeploy the UI.
+
+Free-tier trade-offs: services sleep after 15 idle minutes (the first request then takes
+~1 minute), and the filesystem is temporary, so saved runs disappear on restart. Each run is
+capped at $0.50 and only one runs at a time.
+
 ## Continuous integration
 
 Every push and pull request runs `.github/workflows/ci.yml` on GitHub:

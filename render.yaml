@@ -1,0 +1,32 @@
+# Render Blueprint: deploys the API and the web UI from this repo's Dockerfile.
+# Render dashboard -> New -> Blueprint -> pick this repo. It asks for the `sync: false` values.
+services:
+  - type: web
+    name: scholar-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    healthCheckPath: /health
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # The access password visitors must enter to start a live run.
+      - key: API_TOKEN
+        sync: false
+      - key: MAX_COST_USD
+        value: "0.50"
+      - key: MAX_CONCURRENT_RUNS
+        value: "1"
+
+  - type: web
+    name: scholar-ui
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerCommand: scholar-ui
+    healthCheckPath: /_stcore/health
+    envVars:
+      # The API's public address, e.g. https://scholar-api-xxxx.onrender.com
+      # (free services can't reach each other over Render's private network).
+      - key: SCHOLAR_API_URL
+        sync: false
