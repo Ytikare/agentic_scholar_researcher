@@ -1,0 +1,10 @@
+[
+  {"id": "rag-hallucination", "question": "What are current approaches to reducing hallucination in retrieval-augmented generation?"},
+  {"id": "llm-agents-eval", "question": "How are LLM-based agents evaluated, and what are the main benchmarks?"},
+  {"id": "moe-efficiency", "question": "How do mixture-of-experts architectures improve the efficiency of large language models?"},
+  {"id": "diffusion-speed", "question": "What techniques make diffusion model sampling faster?"},
+  {"id": "vit-vs-cnn", "question": "When do vision transformers outperform convolutional neural networks?"},
+  {"id": "rlhf-alternatives", "question": "What alternatives to RLHF exist for aligning language models with human preferences?"},
+  {"id": "long-context", "question": "How do language models handle very long contexts, and what are the trade-offs?"},
+  {"id": "gnn-oversmoothing", "question": "What causes oversmoothing in graph neural networks and how can it be mitigated?"}
+]

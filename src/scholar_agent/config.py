@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     llm_model: str = "claude-haiku-5-5"
     # Used by the writer and fact-checker. Falls back to llm_model if unset.
     writer_model: str | None = "claude-sonnet-5-5"
+    # Grades reports in evals. A different, stronger model than the writer avoids the
+    # judge going easy on its own style of writing.
+    judge_model: str = "claude-opus-5-5"
     # How hard the model thinks: low | medium | high | xhigh | max.
     # Leave unset for Haiku 4.5, which doesn't support effort.
     llm_effort: str | None = None

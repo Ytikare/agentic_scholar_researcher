@@ -44,12 +44,38 @@ uv run pytest -m live     # tests that hit real APIs
 uv run ruff check .       # lint
 ```
 
+## Evals
+
+Unit tests check that the code works; evals check that the **reports are good**.
+`evals/questions.json` is a small benchmark of research questions across ML subfields.
+
+```bash
+uv run scholar-eval                  # run every question, score each report
+uv run scholar-eval --limit 2        # quick smoke run
+uv run scholar-consistency evals/results/<run>/<id>.json -n 5
+```
+
+Each report is scored two ways:
+
+| Kind | Metric | What it tells you |
+|---|---|---|
+| Code | `citation_coverage` | share of sentences that cite a paper (strict: one citation per paragraph scores low) |
+| Code | `unknown_citations` / `citation_precision` | made-up citations, should always be 0 / 1.0 |
+| Code | `drafts_written`, `unresolved_issues` | how much revising the fact-checker forced |
+| LLM judge | relevance, coverage, groundedness, clarity (1–5) | quality a researcher would care about; graded by a different, stronger model (`JUDGE_MODEL`) with written reasoning |
+
+Results so far: [evals/baseline.md](evals/baseline.md).
+
+Plus latency and tokens per model for every run. `scholar-consistency` re-runs the
+fact-checker on one saved draft and reports how often its verdicts agree, because a
+checker that flags different things on each run can't be trusted to drive revisions.
+
 ## Roadmap
 
 - [x] Phase 0: project setup (uv, ruff, pytest)
 - [x] Phase 1: single ReAct agent with an arXiv tool
 - [x] Phase 2: multi-agent graph (planner → parallel researchers → writer → fact-checker)
 - [x] Phase 3: human-in-the-loop + checkpointing
-- [ ] Phase 4–5: tests + LLM-as-judge evals
+- [x] Phase 4–5: tests + LLM-as-judge evals
 - [ ] Phase 6: tracing & cost tracking
 - [ ] Phase 7–8: FastAPI + Streamlit, Docker, CI, deploy

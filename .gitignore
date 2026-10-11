@@ -15,6 +15,7 @@ wheels/
 # Generated reports and saved run state
 reports/
 .scholar/
+evals/results/
 
 # Tooling caches
 .pytest_cache/
