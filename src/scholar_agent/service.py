@@ -38,12 +38,20 @@ class NotAwaitingApprovalError(RuntimeError):
     pass
 
 
+def plural(n: int, word: str) -> str:
+    return f"{n} {word}" if n == 1 else f"{n} {word}s"
+
+
 def describe(node: str, update: dict | None) -> str | None:
     """A one-line progress message for a finished node."""
     if node == "planner":
-        return f"Planner proposed {len(update['sub_questions'])} sub-questions"
+        return f"Planner proposed {plural(len(update['sub_questions']), 'sub-question')}"
     if node == "review_plan":
-        return f"Plan approved: {len(update['sub_questions'])} sub-questions" if update else None
+        return (
+            f"Plan approved: {plural(len(update['sub_questions']), 'sub-question')}"
+            if update
+            else None
+        )
     if node == "researcher":
         finding = update["findings"][0]
         return f"Researcher done ({len(update['papers'])} papers): {finding['sub_question']}"

@@ -21,36 +21,28 @@ from rich.table import Table
 from scholar_agent.config import get_settings
 from scholar_agent.costs import BudgetExceededError, CostTracker
 from scholar_agent.graph import build_graph
+from scholar_agent.service import describe
 
 console = Console()
 REPORTS_DIR = Path("reports")
 
 
+# Colour of each node's progress line.
+STYLES = {"planner": "bold cyan", "review_plan": "bold cyan", "researcher": "green",
+          "writer": "magenta", "fact_checker": "yellow", "finalize": "bold green"}  # fmt: skip
+
+
 def show_progress(node: str, update: dict | None) -> None:
-    """Print one line per finished node so you can watch the agents work."""
-    if node == "planner":
-        console.print(
-            f"[bold cyan]Planner[/] proposed {len(update['sub_questions'])} sub-questions"
-        )
-    elif node == "review_plan":
-        if not update:
-            console.print("[red]Run cancelled.[/]")
-            return
-        console.print("[bold cyan]Plan approved:[/]")
-        for q in update["sub_questions"]:
-            console.print(f"  • {q}")
-    elif node == "researcher":
-        f = update["findings"][0]
-        console.print(
-            f"[green]Researcher[/] done ({len(update['papers'])} papers): {f['sub_question']}"
-        )
-    elif node == "writer":
-        console.print(f"[magenta]Writer[/] finished draft {update['drafts_written']}")
-    elif node == "fact_checker":
-        n = len(update["issues"])
-        console.print(f"[yellow]Fact-checker[/] {'approved' if n == 0 else f'found {n} issue(s)'}")
-        for issue in update["issues"]:
-            console.print(f"[dim]  - {issue}[/]")
+    """Print one line per finished node (shared wording with the API), plus CLI-only details."""
+    if node == "review_plan" and not update:
+        console.print("Run cancelled.", style="red")
+        return
+    if line := describe(node, update):
+        console.print(line, style=STYLES.get(node), markup=False, highlight=False)
+    # LLM-written text is printed with markup off, so brackets in it can't break the output.
+    details = {"review_plan": "sub_questions", "fact_checker": "issues"}.get(node)
+    for item in update.get(details, []) if details else []:
+        console.print(f"  - {item}", style="dim", markup=False, highlight=False)
 
 
 def ask_plan_decision(payload: dict) -> dict:
