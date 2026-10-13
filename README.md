@@ -2,8 +2,26 @@
 
 [![CI](https://github.com/Ytikare/agentic_scholar_researcher/actions/workflows/ci.yml/badge.svg)](https://github.com/Ytikare/agentic_scholar_researcher/actions/workflows/ci.yml)
 
-A multi-agent LangGraph system that turns a research question into a cited literature review
-from arXiv papers, with an automatic fact-checking loop.
+**A multi-agent research assistant that turns a research question into a cited, fact-checked
+literature review from arXiv papers.**
+
+**[Live demo](https://scholar-ui-dkc3.onrender.com/)**: example reports are free to browse; live runs need an access
+password (each one spends real API credits). The free server may take ~1 minute to wake up.
+
+![ScholarAgent web app: an example report with its LLM-judge scores](docs/screenshot.png)
+
+## Results
+
+| Result | How |
+|---|---|
+| **0 made-up citations** across the benchmark | Every cited arXiv id is checked in code against the papers actually retrieved, and the reference list is built from real arXiv metadata, not written by the LLM. |
+| **Coverage 3.25 → 4.0 / 5** (LLM judge) | Experiment 1 made researchers look up foundational papers by title first: better on 6 of 8 questions, worse on none, and a judge-noise study confirmed the gain is real ([details](evals/experiments.md)). |
+| **~$0.20 per report** | Per-node cost tracking showed 95% of the cost is the writer and fact-checker, not the research; a budget cap stops runaway runs. |
+| **43 offline tests, CI on every push** | Fake LLMs and a fake arXiv: no API key, no network, no cost. CI also builds and smoke-tests the Docker image. |
+
+**Built with:** LangGraph · Claude (Haiku 5.5 researches, Sonnet 5.5 writes and fact-checks,
+Opus 5.5 judges evals) · FastAPI · Streamlit · SQLite checkpoints · LangSmith · Docker ·
+GitHub Actions · Render
 
 ## How it works
 
