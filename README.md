@@ -243,6 +243,38 @@ checker that flags different things on each run can't be trusted to drive revisi
 
 Results and experiments so far: [evals/experiments.md](evals/experiments.md).
 
+## Limitations and future work
+
+**What the agents can know**
+- Sources are arXiv only, and arXiv search ranks by keyword match rather than importance
+  (Experiment 1 works around this, but doesn't remove it). *Next:* add Semantic Scholar as a
+  second tool, ranked by citation count.
+- Writer and fact-checker see paper **abstracts**, not full texts, so claims are limited to
+  what abstracts say. *Next:* fetch full text for the most-cited papers.
+- arXiv allows one request every 3 seconds, so parallel researchers queue for the search tool.
+
+**What the fact-checker catches**
+- It checks that each claim is supported, but by design not what a review leaves out, so
+  selective citation can pass (seen once in the baseline). *Next:* a check for omitted
+  headline findings of cited papers.
+- Minor issues trigger full rewrites, each costing ~$0.07. *Next (Experiment 2):* rate
+  issues major/minor and only revise for major ones.
+
+**How much the numbers prove**
+- The benchmark has 8 questions, with one agent run per condition: judge noise was measured,
+  agent run-to-run variation was not.
+- The judge is itself an LLM and hasn't been checked against human ratings.
+- Experiment 1 cost a little groundedness (4.25 → 4.0, averaged over repeated grading; small
+  overreaches like dropped qualifiers). Not fixed yet.
+
+**Running it as a service**
+- Live run progress is kept in one server's memory, so the API runs as a single instance;
+  scaling out would need shared storage (e.g. a Postgres checkpointer) for run state.
+- On the free hosting plan, saved runs disappear when the server restarts or sleeps.
+- One shared access password; no per-user accounts or daily spending cap.
+- The cost budget counts one session of a run: resuming a stopped run starts it from zero.
+- Clients poll for progress; streaming (Server-Sent Events) would be more responsive.
+
 ## Roadmap
 
 - [x] Phase 0: project setup (uv, ruff, pytest)
