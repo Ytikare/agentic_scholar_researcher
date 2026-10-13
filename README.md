@@ -25,11 +25,26 @@ GitHub Actions · Render
 
 ## How it works
 
-```
-question ─► planner ──Send×N──► researcher ─┐  (parallel ReAct agents searching arXiv)
-                                researcher ─┼─► writer ─► fact_checker ──ok──► finalize ─► report
-                                researcher ─┘      ▲            │
-                                                   └──issues────┘  (max 3 drafts)
+```mermaid
+flowchart TD
+    __start__(["Research question"])
+    planner["<b>planner</b><br/>splits the question into 2-4 sub-questions"]
+    review_plan{"<b>review_plan</b><br/>human approves, edits or cancels<br/>(LangGraph interrupt)"}
+    researcher["<b>researcher</b> x N, in parallel<br/>ReAct agent searching arXiv"]
+    writer["<b>writer</b><br/>drafts the review, cites arXiv ids"]
+    fact_checker{"<b>fact_checker</b><br/>1. code: every cited id was retrieved<br/>2. LLM: abstracts support the claims"}
+    finalize["<b>finalize</b><br/>reference list from real arXiv metadata"]
+    __end__(["Cited literature review"])
+
+    __start__ --> planner
+    planner --> review_plan
+    review_plan -.->|"approve: Send x N"| researcher
+    review_plan -.->|cancel| __end__
+    researcher --> writer
+    writer --> fact_checker
+    fact_checker -.->|"issues (max 3 drafts)"| writer
+    fact_checker -.->|ok| finalize
+    finalize --> __end__
 ```
 
 - **Planner** splits the question into 2–4 sub-questions (structured output).
