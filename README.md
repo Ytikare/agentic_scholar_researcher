@@ -54,6 +54,54 @@ flowchart TD
   so made-up papers can't get through) and with an LLM (does the cited abstract support the claim?).
 - **Finalize** builds the reference list from real arXiv metadata, so references can't be made up.
 
+## Design decisions
+
+**A graph of small agents, not one big agent.** Each sub-question gets its own researcher,
+so research runs in parallel and every agent works with a small, focused context. Each step
+can also be tested and measured on its own. The cost is more LLM calls and orchestration
+code, which LangGraph keeps manageable.
+
+**Researchers see only their sub-question; reducers merge their results.** `Send` hands each
+researcher just `{"sub_question": ...}`. Their `findings` and `papers` are combined by
+reducers (`operator.add`, `merge_papers`), because without one, parallel writes to the same
+state key are rejected.
+
+**Code checks what code can check; the LLM checks the rest.** Whether a cited arXiv id was
+really retrieved is a set lookup, so it is done in code and never misses a made-up paper.
+Only the judgment call (does this abstract support this claim?) goes to an LLM. For the same
+reason, the reference list is rendered from arXiv metadata instead of written by the model.
+
+**A model per job.** Haiku 5.5 handles the many research calls cheaply, Sonnet 5.5 writes and
+fact-checks, and evals are graded by Opus 5.5: a different, stronger model than the writer,
+so the judge isn't grading its own style. Cost tracking backs this up: the researchers make
+most of the calls but account for ~4% of the cost.
+
+**Every loop has a limit.** The revision loop stops after 3 drafts (left-over issues are
+listed in the report instead of hidden), each researcher has a step limit (hitting it keeps
+the papers found so far and says so), and every run has a dollar budget.
+
+**Ask the human before spending money.** The run pauses for plan approval after the cheap
+planning step and before the expensive research. Because LangGraph re-runs an interrupted
+node from its first line on resume, nothing with side effects comes before `interrupt()`.
+
+**Checkpoint every step.** A SQLite checkpointer saves state after each step, including the
+results of parallel researchers that finished before a crash, so resuming only re-runs the
+work that failed. The CLI and the API share the database, so either can resume the other's
+runs.
+
+**Tests that cost nothing.** Every node is built by a factory that takes its LLM as an
+argument, so tests inject fake LLMs. The fakes choose replies by reading the request, not by
+call order, because parallel researchers call them in unpredictable order. The whole suite
+runs offline in seconds, which is what makes CI on every push free.
+
+**Measure before claiming.** Changes are judged on a fixed benchmark with code metrics and an
+LLM judge, and the judge's own noise was measured: a single grading pass can move a
+benchmark average by up to 0.5, so only effects larger than that are reported as real.
+
+**Background runs with polling, not long requests.** A run takes minutes, so `POST /runs`
+returns at once and clients poll for status. This is simple and works with Streamlit and
+free hosting; the trade-off is that live run progress is kept in one server's memory.
+
 ## Quickstart
 
 ```bash
