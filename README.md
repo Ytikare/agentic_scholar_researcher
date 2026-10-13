@@ -284,4 +284,9 @@ Results and experiments so far: [evals/experiments.md](evals/experiments.md).
 - [x] Phase 4–5: tests + LLM-as-judge evals
 - [x] Phase 6: tracing & cost tracking
 - [x] Phase 7: FastAPI + Streamlit
-- [ ] Phase 8: Docker, CI, deploy
+- [x] Phase 8: Docker, CI, deploy (Render)
+- [x] Phase 9: polish (README, diagram, design notes)
+
+## License
+
+MIT, see [LICENSE](LICENSE).

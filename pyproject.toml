@@ -3,6 +3,9 @@ name = "scholar-agent"
 version = "0.1.0"
 description = "Multi-agent research assistant that writes cited literature reviews from arXiv, built with LangGraph"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["langgraph", "llm-agents", "multi-agent", "claude", "arxiv", "literature-review"]
 authors = [
     { name = "Ytikare", email = "ytikare2@tutanota.com" }
 ]
@@ -19,6 +22,10 @@ dependencies = [
     "rich>=15.0.0",
     "uvicorn[standard]>=0.54.0",
 ]
+
+[project.urls]
+Repository = "https://github.com/Ytikare/agentic_scholar_researcher"
+Demo = "https://scholar-ui-dkc3.onrender.com/"
 
 [project.scripts]
 scholar = "scholar_agent.cli:main"
